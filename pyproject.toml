@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fidedu"
+version = "0.1.0"
+description = "In-place hardlink deduplication across one or more folders."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+  { name = "Kevin Veen-Birkenbach" }
+]
+keywords = ["dedupe", "hardlink", "filesystem", "blake2", "in-place"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Topic :: System :: Filesystems",
+  "Topic :: Utilities"
+]
+
+[project.scripts]
+fidedu = "fidedu.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/kevinveenbirkenbach/file-dedupe"
+Repository = "https://github.com/kevinveenbirkenbach/file-dedupe"
+Issues = "https://github.com/kevinveenbirkenbach/file-dedupe/issues"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# ---------------------------------------------------------------------------
+# Ruff configuration
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+target-version = "py39"
+line-length = 88
+fix = false
+show-fixes = true
+
+# Files & folders to ignore
+exclude = [
+  ".git",
+  ".venv",
+  "build",
+  "dist",
+  "__pycache__",
+]
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "F",    # pyflakes
+  "W",    # pycodestyle warnings
+  "I",    # import sorting
+  "UP",   # pyupgrade
+]
+
+ignore = [
+  "E501", # line length (handled pragmatically, not dogmatic)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+  "S101", # allow assert in tests
+]

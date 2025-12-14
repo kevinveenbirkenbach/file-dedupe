@@ -1,6 +1,6 @@
 .PHONY: install test lint fmt clean
 
-PY      ?= python3
+PY ?= python3
 
 install:
 	@echo "Note: Installation is managed via pkgmgr."
@@ -8,17 +8,23 @@ install:
 	@echo "          pkgmgr install fidedu"
 	@echo ""
 	@echo "If you still want to run it locally without installing, use:"
-	@echo "    $(PY) main.py /path/to/source /path/to/store [--compress] [-v]"
+	@echo "    $(PY) -m fidedu.cli /path/to/scan [--compress] [-v]"
 
 test:
 	@echo "Running tests with $(PY)…"
-	@$(PY) test.py -v
+	$(PY) -m unittest -v
 
 lint:
-	@echo "No linter configured. You can run e.g.: ruff check . || true"
+	@echo "Running ruff…"
+	ruff check .
 
 fmt:
-	@echo "No formatter configured. You can run e.g.: ruff format . || true"
+	@echo "Formatting with ruff…"
+	ruff format .
 
 clean:
-	@find . -name '__pycache__' -type d -exec rm -rf {} +
+	find . -name '__pycache__' -type d -exec rm -rf {} +
+	find . -name '*.pyc' -delete
+	find . -name '*.egg-info' -type d -exec rm -rf {} +
+	find . -name build -type d -exec rm -rf {} +
+	find . -name dist -type d -exec rm -rf {} +

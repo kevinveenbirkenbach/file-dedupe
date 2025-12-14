@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+from __future__ import annotations
 import os
 import re
 import stat
@@ -11,7 +11,7 @@ from pathlib import Path
 
 
 class FileDedupeTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         # Isolated workspace with two roots to verify cross-folder dedupe
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
@@ -19,10 +19,6 @@ class FileDedupeTests(unittest.TestCase):
         self.dir2 = self.root / "dir2"
         self.dir1.mkdir()
         self.dir2.mkdir()
-
-        # Script path
-        self.main_py = (Path(__file__).resolve().parent / "main.py").resolve()
-        self.assertTrue(self.main_py.exists(), f"main.py not found at {self.main_py}")
 
         # --- Test data ---
         # Two true duplicates across dir1 and dir2 (same content + aligned attrs)
@@ -45,23 +41,32 @@ class FileDedupeTests(unittest.TestCase):
         self.e = self.dir2 / "e.txt"
         self.e.write_bytes(self.payload)
         now = time.time()
-        os.utime(self.e, (now - 3600, now - 3600))          # different mtime
-        self.e.chmod(stat.S_IRUSR | stat.S_IWUSR)           # 0o600
+        os.utime(self.e, (now - 3600, now - 3600))  # different mtime
+        self.e.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0o600
 
         self.dup_size = self.a.stat().st_size
         self.expected_savings = self.dup_size  # a.txt + d.bin → save one file's size
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def run_main(self, *args, check=True, verbose=False):
-        cmd = [sys.executable, str(self.main_py), str(self.dir1), str(self.dir2), *args]
+    def run_cli(self, *args: str, check: bool = True, verbose: bool = False) -> subprocess.CompletedProcess[str]:
+        cmd = [
+            sys.executable,
+            "-m",
+            "fidedu.cli",
+            str(self.dir1),
+            str(self.dir2),
+            *args,
+        ]
         proc = subprocess.run(cmd, text=True, capture_output=True)
         if verbose:
             print("STDOUT:\n", proc.stdout)
             print("STDERR:\n", proc.stderr)
         if check and proc.returncode != 0:
-            self.fail(f"Command failed ({proc.returncode}):\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}")
+            self.fail(
+                f"Command failed ({proc.returncode}):\nSTDOUT:\n{proc.stdout}\nSTDERR:\n{proc.stderr}"
+            )
         return proc
 
     def parse_savings_bytes(self, stdout: str) -> int:
@@ -69,17 +74,17 @@ class FileDedupeTests(unittest.TestCase):
         self.assertIsNotNone(m, f"Could not parse savings from output:\n{stdout}")
         return int(m.group(1))
 
-    def test_dry_run_reports_expected_savings(self):
+    def test_dry_run_reports_expected_savings(self) -> None:
         """Dry run should report exactly one file-size saved (two true-duplicates across dirs)."""
-        proc = self.run_main()
+        proc = self.run_cli()
         if "No duplicate files found." in proc.stdout:
             self.fail(f"Expected duplicates but found none.\n{proc.stdout}")
         savings = self.parse_savings_bytes(proc.stdout)
         self.assertEqual(savings, self.expected_savings, f"Unexpected savings.\n{proc.stdout}")
 
-    def test_compress_creates_hardlinks_only_for_true_duplicates(self):
+    def test_compress_creates_hardlinks_only_for_true_duplicates(self) -> None:
         """After --compress, a.txt and d.bin are hardlinked; e.txt remains separate."""
-        proc = self.run_main("--compress", "-v")
+        self.run_cli("--compress", "-v")
         # a and d should now share the same inode
         ino_a = os.stat(self.a).st_ino
         ino_d = os.stat(self.d).st_ino
@@ -87,7 +92,9 @@ class FileDedupeTests(unittest.TestCase):
 
         # e.txt must not be linked to a/d (different attributes)
         ino_e = os.stat(self.e).st_ino
-        self.assertNotEqual(ino_e, ino_a, "e.txt should NOT be deduplicated due to attribute differences")
+        self.assertNotEqual(
+            ino_e, ino_a, "e.txt should NOT be deduplicated due to attribute differences"
+        )
 
 
 if __name__ == "__main__":
