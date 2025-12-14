@@ -1,34 +1,14 @@
-#!/usr/bin/env python3
-"""
-file-dedupe — In-place hardlink deduplication across one or more folders.
-
-- Scans the given folders recursively.
-- Finds duplicate files by hashing *content + attributes* (mode, uid, gid, size, mtime_sec).
-- For each duplicate set (per filesystem/volume), chooses one canonical original
-  and replaces the others with hardlinks to it (only when --compress is given).
-- Parallel hashing via ProcessPoolExecutor.
-
-Usage (dry-run):
-    fidedu DIR [DIR ...]
-    python3 main.py DIR1 DIR2
-
-Apply changes:
-    fidedu DIR1 DIR2 --compress -v
-"""
-
-import argparse
+from __future__ import annotations
 import concurrent.futures as cf
 import hashlib
 import os
 import struct
-from pathlib import Path
-from typing import Dict, List, Tuple, Iterator, Optional, Iterable, DefaultDict
 from collections import defaultdict
+from pathlib import Path
+from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Tuple
 
 BUF_SIZE = 1024 * 1024  # 1 MiB
 
-
-# ----------------------- Helpers -----------------------
 
 def iter_files(roots: Iterable[Path]) -> Iterator[Path]:
     """Yield regular files under the provided roots; skip symlinks."""
@@ -49,7 +29,7 @@ def iter_files(roots: Iterable[Path]) -> Iterator[Path]:
             for fname in filenames:
                 p = d / fname
                 try:
-                    st_l = p.lstat()
+                    p.lstat()
                 except FileNotFoundError:
                     continue
                 if not os.path.isfile(p) or os.path.islink(p):
@@ -66,8 +46,6 @@ def human_bytes(n: int) -> str:
         i += 1
     return f"{v:.2f} {units[i]}"
 
-
-# ----------------------- Hashing -----------------------
 
 def hash_file_with_attrs(path: Path, bufsize: int = BUF_SIZE) -> Optional[Tuple[str, int]]:
     """
@@ -105,9 +83,14 @@ def hash_file_with_attrs(path: Path, bufsize: int = BUF_SIZE) -> Optional[Tuple[
         return None
 
 
-# ----------------------- Core logic -----------------------
+def stat_is_regular_file(mode: int) -> bool:
+    return (mode & 0o170000) == 0o100000
 
-def collect_by_size(roots: List[Path], verbose: bool) -> Tuple[Dict[int, List[Path]], Dict[Path, Tuple[int, int, int]]]:
+
+def collect_by_size(
+    roots: List[Path],
+    verbose: bool,
+) -> Tuple[Dict[int, List[Path]], Dict[Path, Tuple[int, int, int]]]:
     """
     Return:
       by_size: size -> [paths]
@@ -130,10 +113,6 @@ def collect_by_size(roots: List[Path], verbose: bool) -> Tuple[Dict[int, List[Pa
         print(f"[scan] Total files considered: {total}")
     # keep only sizes with >1 files
     return {s: ps for s, ps in by_size.items() if len(ps) > 1}, finfo
-
-
-def stat_is_regular_file(mode: int) -> bool:
-    return (mode & 0o170000) == 0o100000
 
 
 def compute_hashes_parallel(paths: List[Path], workers: int, verbose: bool) -> Dict[str, List[Path]]:
@@ -278,70 +257,3 @@ def perform_hardlinking(
                     except OSError as e:
                         if verbose:
                             print(f"[warn] OSError relinking {p}: {e}")
-
-
-# ----------------------- CLI -----------------------
-
-def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(
-        description=(
-            "Deduplicate files across one or more folders by replacing duplicates with hardlinks to a"
-            " chosen canonical original (in place). Duplicates are detected via a BLAKE2b hash over file"
-            " content and attributes (mode, uid, gid, size, mtime_sec)."
-        )
-    )
-    ap.add_argument("folders", nargs="+", type=Path, help="One or more folders to scan recursively.")
-    ap.add_argument("-c", "--compress", action="store_true",
-                    help="Apply changes (relink duplicates to canonical originals). Default: dry-run.")
-    ap.add_argument("-v", "--verbose", action="store_true", help="Verbose output.")
-    ap.add_argument("-w", "--workers", type=int, default=os.cpu_count() or 4,
-                    help="Number of parallel worker processes for hashing (default: CPU count).")
-    return ap.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-    roots = [p.resolve() for p in args.folders]
-
-    if args.verbose:
-        print(f"[cfg] roots={', '.join(map(str, roots))}")
-        print(f"[cfg] workers={args.workers}")
-        print(f"[cfg] mode={'EXECUTE' if args.compress else 'DRY-RUN'}")
-
-    dup_map_dev, size_map, finfo = find_duplicates(
-        roots=roots, workers=args.workers, verbose=args.verbose
-    )
-
-    savings, relinks, files = plan_stats(dup_map_dev, size_map, finfo)
-
-    if not dup_map_dev:
-        print("No duplicate files found.")
-        return
-
-    # Count duplicate sets as sum of per-device groups
-    dup_sets = sum(len(g) for g in dup_map_dev.values())
-
-    print(f"Duplicate sets found: {dup_sets}")
-    print(f"Files involved:       {files}")
-    print(f"Planned relinks:      {relinks}")
-    print(f"Estimated savings:    {human_bytes(savings)} ({savings} bytes)")
-
-    if args.verbose:
-        print("\nDetails per duplicate set:")
-        for digest, dev_groups in dup_map_dev.items():
-            size = size_map[digest]
-            for dev, paths in dev_groups.items():
-                print(f"  digest={digest[:16]}... dev={dev} size={size} bytes count={len(paths)}")
-                for p in paths:
-                    print(f"    - {p}")
-
-    if args.compress:
-        print("\n[execute] Relinking duplicates to canonical originals...")
-        perform_hardlinking(dup_map_dev, size_map, finfo, verbose=args.verbose)
-        print("[done] Hardlinking complete.")
-    else:
-        print("\n[dry-run] Use --compress to apply these changes.")
-
-
-if __name__ == "__main__":
-    main()

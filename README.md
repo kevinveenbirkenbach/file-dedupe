@@ -1,26 +1,39 @@
 # file-dedupe
-[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-blue?logo=github)](https://github.com/sponsors/kevinveenbirkenbach) [![Patreon](https://img.shields.io/badge/Support-Patreon-orange?logo=patreon)](https://www.patreon.com/c/kevinveenbirkenbach) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20Coffee-Funding-yellow?logo=buymeacoffee)](https://buymeacoffee.com/kevinveenbirkenbach) [![PayPal](https://img.shields.io/badge/Donate-PayPal-blue?logo=paypal)](https://s.veen.world/paypaldonate)
 
+[![PyPI](https://img.shields.io/pypi/v/fidedu.svg)](https://pypi.org/project/fidedu/)
+[![Python Versions](https://img.shields.io/pypi/pyversions/fidedu.svg)](https://pypi.org/project/fidedu/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![CI](https://github.com/kevinveenbirkenbach/file-dedupe/actions/workflows/ci-and-mark-stable.yml/badge.svg)](https://github.com/kevinveenbirkenbach/file-dedupe/actions/workflows/ci-and-mark-stable.yml)
+
+[![GitHub Sponsors](https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-blue?logo=github)](https://github.com/sponsors/kevinveenbirkenbach)
+[![Patreon](https://img.shields.io/badge/Support-Patreon-orange?logo=patreon)](https://www.patreon.com/c/kevinveenbirkenbach)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20me%20a%20Coffee-Funding-yellow?logo=buymeacoffee)](https://buymeacoffee.com/kevinveenbirkenbach)
+[![PayPal](https://img.shields.io/badge/Donate-PayPal-blue?logo=paypal)](https://s.veen.world/paypaldonate)
 
 **Find and replace duplicate files across one or more folders with hardlinks.**  
-Uses fast parallel hashing with file attribute awareness to safely deduplicate files in-place.  
+Uses fast parallel hashing with file attribute awareness to safely deduplicate files *in-place*.  
 Part of the [Infinito.Nexus](https://github.com/kevinveenbirkenbach/infinito.nexus) ecosystem.
 
 ---
 
 ## 📦 Installation
 
-`file-dedupe` can be installed using the custom package manager  
-[`pkgmgr`](https://github.com/kevinveenbirkenbach/package-manager):
+The tool is published on **PyPI** and can be installed using pip:
 
 ```bash
-pkgmgr install fidedu
+pip install fidedu
 ````
 
-This provides the global command:
+This installs the global command:
 
 ```bash
 fidedu
+```
+
+You can also invoke it explicitly as a module:
+
+```bash
+python -m fidedu --help
 ```
 
 ---
@@ -47,6 +60,12 @@ Verbose output (show exactly what happens):
 fidedu ~/Documents ~/Downloads ~/Pictures --compress -v
 ```
 
+Equivalent module invocation:
+
+```bash
+python -m fidedu ~/Documents ~/Downloads --compress -v
+```
+
 ---
 
 ## ⚙️ Behavior
@@ -57,7 +76,8 @@ fidedu ~/Documents ~/Downloads ~/Pictures --compress -v
    (mode, UID, GID, size, and modification time).
 4. Files with matching hashes are treated as **true duplicates**.
 5. One canonical copy is kept; all others are **replaced by hardlinks** pointing to it.
-6. When `--compress` is *not* used, the tool reports potential savings only (no changes are made).
+6. When `--compress` is *not* used, the tool reports potential savings only
+   (no changes are made).
 
 ---
 
@@ -74,10 +94,9 @@ fidedu ~/Documents ~/Downloads ~/Pictures --compress -v
 ### Example Output
 
 ```text
-Scanning 3 folders...
 Duplicate sets found: 12
 Files involved:       57
-Planned hardlinks:    45
+Planned relinks:      45
 Estimated savings:    1.2 GB (1,234,567,890 bytes)
 
 [dry-run] Use --compress to apply these changes.
@@ -87,11 +106,24 @@ Estimated savings:    1.2 GB (1,234,567,890 bytes)
 
 ## 🧪 Testing
 
-Run all tests using the built-in `Makefile`:
+Run all tests locally:
 
 ```bash
 make test
 ```
+
+Lint the codebase:
+
+```bash
+make lint
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License**.
+See the [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -99,9 +131,3 @@ make test
 
 **Kevin Veen-Birkenbach**
 [https://veen.world](https://veen.world)
-
----
-
-## 💬 Credits and References
-
-Developed with assistance from **ChatGPT (GPT-5)** as part of an iterative design and implementation [session on *October 18, 2025*](https://chatgpt.com/share/68f3612f-d620-800f-8c43-5fa8a3d564b9), focusing on parallel, attribute-aware, in-place hardlink deduplication.
