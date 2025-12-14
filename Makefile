@@ -2,14 +2,6 @@
 
 PY ?= python3
 
-install:
-	@echo "Note: Installation is managed via pkgmgr."
-	@echo "      To install this tool, run:"
-	@echo "          pkgmgr install fidedu"
-	@echo ""
-	@echo "If you still want to run it locally without installing, use:"
-	@echo "    $(PY) -m fidedu.cli /path/to/scan [--compress] [-v]"
-
 test:
 	@echo "Running tests with $(PY)…"
 	$(PY) -m unittest discover -s tests -p "test_*.py" -v
