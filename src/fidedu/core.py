@@ -1,18 +1,20 @@
+# ./src/fidedu/core.py
 from __future__ import annotations
+
 import concurrent.futures as cf
 import hashlib
 import os
 import struct
 from collections import defaultdict
+from collections.abc import Iterable, Iterator
 from pathlib import Path
-from typing import DefaultDict, Dict, Iterable, Iterator, List, Optional, Tuple
 
 BUF_SIZE = 1024 * 1024  # 1 MiB
 
 
 def iter_files(roots: Iterable[Path]) -> Iterator[Path]:
     """Yield regular files under the provided roots; skip symlinks."""
-    seen_dirs = set()
+    seen_dirs: set[Path] = set()
     for root in roots:
         root = root.resolve()
         if not root.exists() or not root.is_dir():
@@ -47,7 +49,7 @@ def human_bytes(n: int) -> str:
     return f"{v:.2f} {units[i]}"
 
 
-def hash_file_with_attrs(path: Path, bufsize: int = BUF_SIZE) -> Optional[Tuple[str, int]]:
+def hash_file_with_attrs(path: Path, bufsize: int = BUF_SIZE) -> tuple[str, int] | None:
     """
     Return (hex_digest, size) or None if unreadable.
     Hash covers:
@@ -88,16 +90,16 @@ def stat_is_regular_file(mode: int) -> bool:
 
 
 def collect_by_size(
-    roots: List[Path],
+    roots: list[Path],
     verbose: bool,
-) -> Tuple[Dict[int, List[Path]], Dict[Path, Tuple[int, int, int]]]:
+) -> tuple[dict[int, list[Path]], dict[Path, tuple[int, int, int]]]:
     """
     Return:
       by_size: size -> [paths]
       finfo:   path -> (size, dev, ino)
     """
-    by_size: DefaultDict[int, List[Path]] = defaultdict(list)
-    finfo: Dict[Path, Tuple[int, int, int]] = {}
+    by_size: defaultdict[int, list[Path]] = defaultdict(list)
+    finfo: dict[Path, tuple[int, int, int]] = {}
     total = 0
     for p in iter_files(roots):
         try:
@@ -115,9 +117,9 @@ def collect_by_size(
     return {s: ps for s, ps in by_size.items() if len(ps) > 1}, finfo
 
 
-def compute_hashes_parallel(paths: List[Path], workers: int, verbose: bool) -> Dict[str, List[Path]]:
+def compute_hashes_parallel(paths: list[Path], workers: int, verbose: bool) -> dict[str, list[Path]]:
     """For given same-size candidates, return digest -> [paths]."""
-    result: DefaultDict[str, List[Path]] = defaultdict(list)
+    result: defaultdict[str, list[Path]] = defaultdict(list)
     with cf.ProcessPoolExecutor(max_workers=workers) as ex:
         futures = {ex.submit(hash_file_with_attrs, p): p for p in paths}
         for fut in cf.as_completed(futures):
@@ -133,10 +135,10 @@ def compute_hashes_parallel(paths: List[Path], workers: int, verbose: bool) -> D
 
 
 def find_duplicates(
-    roots: List[Path],
+    roots: list[Path],
     workers: int,
     verbose: bool,
-) -> Tuple[Dict[str, Dict[int, List[Path]]], Dict[str, int], Dict[Path, Tuple[int, int, int]]]:
+) -> tuple[dict[str, dict[int, list[Path]]], dict[str, int], dict[Path, tuple[int, int, int]]]:
     """
     Find duplicate sets across all roots.
 
@@ -146,8 +148,8 @@ def find_duplicates(
       finfo:       path  -> (size, dev, ino)
     """
     by_size, finfo = collect_by_size(roots, verbose)
-    dup_map_dev: Dict[str, Dict[int, List[Path]]] = {}
-    size_map: Dict[str, int] = {}
+    dup_map_dev: dict[str, dict[int, list[Path]]] = {}
+    size_map: dict[str, int] = {}
 
     for size, paths in by_size.items():
         if verbose:
@@ -156,7 +158,7 @@ def find_duplicates(
         for digest, same in by_digest.items():
             if len(same) >= 2:
                 # partition by device (hardlinks must stay on same filesystem)
-                by_dev: DefaultDict[int, List[Path]] = defaultdict(list)
+                by_dev: defaultdict[int, list[Path]] = defaultdict(list)
                 for p in same:
                     _sz, dev, _ino = finfo[p]
                     by_dev[dev].append(p)
@@ -170,10 +172,10 @@ def find_duplicates(
 
 
 def plan_stats(
-    dup_map_dev: Dict[str, Dict[int, List[Path]]],
-    size_map: Dict[str, int],
-    finfo: Dict[Path, Tuple[int, int, int]],
-) -> Tuple[int, int, int]:
+    dup_map_dev: dict[str, dict[int, list[Path]]],
+    size_map: dict[str, int],
+    finfo: dict[Path, tuple[int, int, int]],
+) -> tuple[int, int, int]:
     """
     Compute:
       total_savings_bytes
@@ -187,28 +189,31 @@ def plan_stats(
 
     for digest, dev_groups in dup_map_dev.items():
         size = size_map[digest]
-        for dev, paths in dev_groups.items():
+        for _dev, paths in dev_groups.items():
             files += len(paths)
             # Count unique inodes
-            inode_groups: DefaultDict[int, List[Path]] = defaultdict(list)
+            inode_groups: defaultdict[int, list[Path]] = defaultdict(list)
             for p in paths:
-                _sz, _dev, ino = finfo[p]
+                _sz, _dev2, ino = finfo[p]
                 inode_groups[ino].append(p)
+
             unique_inodes = len(inode_groups)
             if unique_inodes <= 1:
                 continue
+
             savings += (unique_inodes - 1) * size
+
             # choose canonical as the inode group with the most paths (minimize relinks)
-            canonical_inode, canonical_paths = max(inode_groups.items(), key=lambda kv: len(kv[1]))
-            relinks += (len(paths) - len(canonical_paths))
+            _canonical_inode, canonical_paths = max(inode_groups.items(), key=lambda kv: len(kv[1]))
+            relinks += len(paths) - len(canonical_paths)
 
     return savings, relinks, files
 
 
 def perform_hardlinking(
-    dup_map_dev: Dict[str, Dict[int, List[Path]]],
-    size_map: Dict[str, int],
-    finfo: Dict[Path, Tuple[int, int, int]],
+    dup_map_dev: dict[str, dict[int, list[Path]]],
+    size_map: dict[str, int],
+    finfo: dict[Path, tuple[int, int, int]],
     verbose: bool,
 ) -> None:
     """
@@ -222,7 +227,7 @@ def perform_hardlinking(
                 continue
 
             # Build inode groups
-            inode_groups: DefaultDict[int, List[Path]] = defaultdict(list)
+            inode_groups: defaultdict[int, list[Path]] = defaultdict(list)
             for p in paths:
                 _sz, _dev, ino = finfo[p]
                 inode_groups[ino].append(p)

@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 import os
 import re
 import stat
+import subprocess
 import sys
+import tempfile
 import time
 import unittest
-import tempfile
-import subprocess
 from pathlib import Path
 
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import argparse
 import os
 from pathlib import Path
@@ -41,9 +42,7 @@ def main() -> None:
         print(f"[cfg] workers={args.workers}")
         print(f"[cfg] mode={'EXECUTE' if args.compress else 'DRY-RUN'}")
 
-    dup_map_dev, size_map, finfo = find_duplicates(
-        roots=roots, workers=args.workers, verbose=args.verbose
-    )
+    dup_map_dev, size_map, finfo = find_duplicates(roots=roots, workers=args.workers, verbose=args.verbose)
 
     savings, relinks, files = plan_stats(dup_map_dev, size_map, finfo)
 
